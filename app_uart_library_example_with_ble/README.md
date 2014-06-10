@@ -1,7 +1,7 @@
 app-uart-library-example-with-ble
 ==================
 
- This file shows UART functionality with the app_uart libarty and the S110 BLE softdevice enabled.
+ This file shows UART functionality with the app_uart library and the S110 BLE softdevice enabled.
 
  See main.c for a detailed description of the application behavior. 
  
