@@ -1,4 +1,4 @@
-/* Copyright (c) 2013 Nordic Semiconductor. All Rights Reserved.
+/* Copyright (c) 2014 Nordic Semiconductor. All Rights Reserved.
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the license.txt file.
@@ -11,7 +11,7 @@
  * is enabled, in order to prevent data loss. To connect the development kit with your PC via 
  * UART, connect the configured RXD, TXD, RTS and CTS pins to the RXD, TXD, RTS and CTS pins 
  * on header P15 on the motherboard. Then connect the RS232 port on the nRFgo motherboard to
- * your PC. Configuration for UART pins is defined in the nrf6310.h header file.
+ * your PC. Configuration for UART pins is defined in the uart_conf.h header file.
  *
  * This file contains source code for a sample application that uses the Nordic UART service.
  * Connect to the UART example via Master Control Panel and the PCA10000 USB dongle, or via 
@@ -20,13 +20,24 @@
  *
  * This example should be operated in the same way as the UART example for the evaluation board
  * in the SDK. Follow the same guide for this example, given on:
- * https://devzone.nordicsemi.com/documentation/nrf51/5.2.0/html/a00077.html
+ * https://devzone.nordicsemi.com/documentation/nrf51/6.0.0/s110/html/a00066.html#project_uart_nus_eval_test
  *
  * This example uses FIFO RX and FIFO TX buffer to operate with the UART. You can set the size
  * for the FIFO buffers by modifying the RX_BUFFER_SIZE and TX_BUFFER_SIZE constants.
  *
  * Documentation for the app_uart library is given in UART driver documentation in the SDK at:
- * https://devzone.nordicsemi.com/documentation/nrf51/5.2.0/html/a00096.html
+ * https://devzone.nordicsemi.com/documentation/nrf51/6.1.0/s110/html/a00008.html
+ */
+
+/** @file
+ *
+ * @defgroup ble_sdk_uart_over_ble_main main.c
+ * @{
+ * @ingroup  ble_sdk_app_nus_eval
+ * @brief    UART over BLE application main file.
+ *
+ * This file contains the source code for a sample application that uses the Nordic UART service.
+ * This application uses the @ref srvlib_conn_params module.
  */
 
 #include <stdint.h>
@@ -41,12 +52,15 @@
 #include "app_timer.h"
 #include "app_button.h"
 #include "ble_nus.h"
+#include "app_uart.h"
+#include "uart_conf.h"
 #include "boards.h"
 #include "ble_error_log.h"
 #include "ble_debug_assert_handler.h"
-#include "app_uart.h"
-#include "app_gpiote.h"
-#include "nrf_delay.h"
+#include "app_util_platform.h"
+
+#define IS_SRVC_CHANGED_CHARACT_PRESENT 0                                           /**< Include or not the service_changed characteristic. if not enabled, the server's database cannot be changed for the lifetime of the device*/
+
 
 #define WAKEUP_BUTTON_PIN               BUTTON_0                                    /**< Button used to wake up the application. */
 
@@ -62,12 +76,12 @@
 #define APP_TIMER_MAX_TIMERS            2                                           /**< Maximum number of simultaneously created timers. */
 #define APP_TIMER_OP_QUEUE_SIZE         4                                           /**< Size of timer operation queues. */
 
-#define MIN_CONN_INTERVAL               16                                          /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MIN_CONN_INTERVAL               7.5                                          /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
 #define MAX_CONN_INTERVAL               60                                          /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY                   0                                           /**< slave latency. */
 #define CONN_SUP_TIMEOUT                400                                         /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
-#define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(20000, APP_TIMER_PRESCALER) /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (20 seconds). */
-#define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time between each call to sd_ble_gap_conn_param_update after the first call (5 seconds). */
+#define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
+#define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000, APP_TIMER_PRESCALER) /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
 
 #define BUTTON_DETECTION_DELAY          APP_TIMER_TICKS(50, APP_TIMER_PRESCALER)    /**< Delay from a GPIOTE event until a button is reported as pushed (in number of timer ticks). */
@@ -82,18 +96,16 @@
 
 #define START_STRING                    "Start...\n"                                /**< The string that will be sent over the UART when the application starts. */
 
-#define RX_BUFFER_SIZE									32
-#define TX_BUFFER_SIZE                  32
-
 #define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
-#define BLE_TO_UART_ACTIVITY_LED_PIN_NO LED_2
-#define UART_TO_BLE_ACTIVITY_LED_PIN_NO LED_3
+#define APP_GPIOTE_MAX_USERS            1
 
 static ble_gap_sec_params_t             m_sec_params;                               /**< Security requirements for this application. */
 static uint16_t                         m_conn_handle = BLE_CONN_HANDLE_INVALID;    /**< Handle of the current connection. */
 static ble_nus_t                        m_nus;                                      /**< Structure to identify the Nordic UART Service. */
 
+static bool ble_buffer_available = true;
+static bool tx_complete = false;
 
 /**@brief     Error handler function, which is called when an error has occurred.
  *
@@ -113,7 +125,7 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p
     //                The flash write will happen EVEN if the radio is active, thus interrupting
     //                any communication.
     //                Use with care. Un-comment the line below to use.
-    // ble_debug_assert_handler(error_code, line_num, p_file_name);
+    //ble_debug_assert_handler(error_code, line_num, p_file_name);
 
     // On assert, the system can only recover with a reset.
     NVIC_SystemReset();
@@ -145,10 +157,7 @@ static void leds_init(void)
 {
     nrf_gpio_cfg_output(ADVERTISING_LED_PIN_NO);
     nrf_gpio_cfg_output(CONNECTED_LED_PIN_NO);
-		nrf_gpio_cfg_output(UART_TO_BLE_ACTIVITY_LED_PIN_NO);
-		nrf_gpio_cfg_output(BLE_TO_UART_ACTIVITY_LED_PIN_NO);
 }
-
 
 /**@brief   Function for Timer initialization.
  *
@@ -228,14 +237,11 @@ static void advertising_init(void)
 /**@snippet [Handling the data received over BLE] */
 void nus_data_handler(ble_nus_t * p_nus, uint8_t * p_data, uint16_t length)
 {
-		nrf_gpio_pin_toggle(BLE_TO_UART_ACTIVITY_LED_PIN_NO);
-	
-		//Sending multiple bytes on the UART. Can only be done with FIFO buffer.
     for (int i = 0; i < length; i++)
     {
-				app_uart_put(p_data[i]);
+        app_uart_put(p_data[i]);
     }
-		app_uart_put('\n');
+    app_uart_put('\n');
 }
 /**@snippet [Handling the data received over BLE] */
 
@@ -422,6 +428,9 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
                 APP_ERROR_CHECK(err_code);
             }
             break;
+        case BLE_EVT_TX_COMPLETE:
+            if(!ble_buffer_available) tx_complete = true;
+            break;
 
         default:
             // No implementation needed.
@@ -452,11 +461,20 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
  */
 static void ble_stack_init(void)
 {
+    uint32_t err_code;
+    
     // Initialize SoftDevice.
     SOFTDEVICE_HANDLER_INIT(NRF_CLOCK_LFCLKSRC_XTAL_20_PPM, false);
+
+    // Enable BLE stack 
+    ble_enable_params_t ble_enable_params;
+    memset(&ble_enable_params, 0, sizeof(ble_enable_params));
+    ble_enable_params.gatts_enable_params.service_changed = IS_SRVC_CHANGED_CHARACT_PRESENT;
+    err_code = sd_ble_enable(&ble_enable_params);
+    APP_ERROR_CHECK(err_code);
     
     // Subscribe for BLE events.
-    uint32_t err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
+    err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -478,87 +496,103 @@ static void power_manage(void)
     APP_ERROR_CHECK(err_code);
 }
 
-void putstring(char * s)
+
+
+
+void uart_putstring(const uint8_t * str)
 {
     uint32_t err_code;
     
-    uint8_t len = strlen((char *) s);
+    uint8_t len = strlen((char *) str);
     for (uint8_t i = 0; i < len; i++)
     {
-        err_code = app_uart_put(s[i]);
+        err_code = app_uart_put(str[i]);
         APP_ERROR_CHECK(err_code);
     }
+    
 }
 
-static void uart_evt_handler(app_uart_evt_t * p_evt)
+
+/**@brief   Function for handling UART interrupts.
+ *
+ * @details This function will receive a single character from the UART and append it to a string.
+ *          The string will be be sent over BLE when the last character received was a 'new line'
+ *          i.e '\n' (hex 0x0D) or if the string has reached a length of @ref NUS_MAX_DATA_LENGTH.
+ */
+
+void uart_evt_callback(app_uart_evt_t * uart_evt)
 {
-		nrf_gpio_pin_toggle(UART_TO_BLE_ACTIVITY_LED_PIN_NO);
+    //uint32_t err_code;
 	
-    uint32_t err_code;
-		static uint8_t data_array[BLE_NUS_MAX_DATA_LEN];
-		static uint8_t index = 0;
-	
-    switch (p_evt->evt_type)
+    switch (uart_evt->evt_type)
     {
         case APP_UART_DATA:	
 						//Data is ready on the UART					
             break;
 						
-				case APP_UART_DATA_READY:
-						//Data is ready on the UART FIFO
-						err_code = app_uart_get(&data_array[index]);
-						APP_ERROR_CHECK(err_code);
-						index++;
-
-						if ((data_array[index - 1] == 0x0D) || (index >= (BLE_NUS_MAX_DATA_LEN - 1)))
-						{
-								err_code = ble_nus_send_string(&m_nus, data_array, index + 1);
-								if (err_code != NRF_ERROR_INVALID_STATE)
-								{
-										APP_ERROR_CHECK(err_code);
-								}
-								
-								index = 0;
-						}
-						break;
+		case APP_UART_DATA_READY:
+            //Data is ready on the UART FIFO		
+            break;
 						
-				case APP_UART_TX_EMPTY:
-						//Data has been successfully transmitted on the UART
-						break;
+        case APP_UART_TX_EMPTY:
+			//Data has been successfully transmitted on the UART
+            break;
 						
         default:
             break;
     }
+    
 }
-
 /**@brief  Function for initializing the UART module.
  */
 static void uart_init(void)
 {
-		app_uart_comm_params_t comm_params;
-		uint32_t error_code; 
-	
-		comm_params.rx_pin_no = RX_PIN_NUMBER;
-		comm_params.tx_pin_no = TX_PIN_NUMBER;
-		comm_params.rts_pin_no = RTS_PIN_NUMBER;
-		comm_params.cts_pin_no = CTS_PIN_NUMBER;
-		comm_params.flow_control = APP_UART_FLOW_CONTROL_ENABLED; 
-		comm_params.use_parity = false;
-		comm_params.baud_rate = UART_BAUDRATE_BAUDRATE_Baud38400;
-		
-		APP_UART_FIFO_INIT(&comm_params, RX_BUFFER_SIZE, TX_BUFFER_SIZE, uart_evt_handler, APP_IRQ_PRIORITY_LOW, error_code);
+    uint32_t err_code;
+    
+    APP_UART_FIFO_INIT(&comm_params,
+                        RX_BUF_SIZE,
+                        TX_BUF_SIZE,
+                        uart_evt_callback,
+                        UART_IRQ_PRIORITY,
+                        err_code);
+    
+    APP_ERROR_CHECK(err_code);
 }
 
+bool ble_attempt_to_send(uint8_t * data, uint8_t length)
+{
+    uint32_t err_code;
+    
+    err_code = ble_nus_send_string(&m_nus, data,length);
+    
+    if(err_code == BLE_ERROR_NO_TX_BUFFERS)
+    {
+        /* ble tx buffer full*/
+        return false;
+    }                   
+    else if (err_code != NRF_ERROR_INVALID_STATE)
+	{
+        APP_ERROR_CHECK(err_code);   
+    }
+    
+    return true;
+    
+    
+}
 
 /**@brief  Application main function.
  */
 int main(void)
 {
+    
+    static uint8_t data_array[BLE_NUS_MAX_DATA_LEN];
+    static uint8_t index = 0;
+    uint8_t newbyte;
+    
     // Initialize
     leds_init();
     timers_init();
     buttons_init();
-		APP_GPIOTE_INIT(1);
     uart_init();
     ble_stack_init();
     gap_params_init();
@@ -566,14 +600,37 @@ int main(void)
     advertising_init();
     conn_params_init();
     sec_params_init();
-	
-		putstring("  Start!  \n");
+    
+    uart_putstring(START_STRING);
     
     advertising_start();
     
     // Enter main loop
     for (;;)
-    {
+    { 
+        /*Stop reading new data if there are no ble buffers available */
+        if(ble_buffer_available)
+        {
+            if(app_uart_get(&newbyte) == NRF_SUCCESS)
+            {
+                data_array[index++] =  newbyte;
+               
+                if (index >= (BLE_NUS_MAX_DATA_LEN))
+				{
+                    ble_buffer_available=ble_attempt_to_send(&data_array[0],index);
+                 	if(ble_buffer_available) index=0;
+				}
+            }
+        }
+        /* Re-transmission if ble_buffer_available was set to false*/
+        if(tx_complete)
+        {
+            tx_complete=false;
+            
+            ble_buffer_available=ble_attempt_to_send(&data_array[0],index);
+            if(ble_buffer_available) index =0;
+        }
+
         power_manage();
     }
 }

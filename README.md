@@ -1,16 +1,13 @@
-nrf51-UART-examples
+ble_app_uart-examples
 ==================
 
- This project contains code examples that show nrf51 UART functionality.
+This project contains code examples that show nrf51 UART functionality with the app_uart library.
  
 Requirements
 ------------
-- nRF51 SDK version 5.2.0
+- nRF51 SDK version 6.1.0
+- S110 SoftDevice version 7.0.0
 - nRF51822 Development Kit version 2.1.0 or later
-
-The project may need modifications to work with other versions or other boards. 
-
-To compile it, clone the repository in the \nrf51822\Board\nrf6310\ folder.
 
 About this project
 ------------------
