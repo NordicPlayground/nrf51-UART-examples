@@ -14,9 +14,10 @@ Sleep current is ~3uA when the softdevice is enabled and the nRF51 is sleeping. 
 
 ble_app_uart_low_power_with_buffers_peer_device (UART master)
 ------------
-This project is configured for normal operation and is not low power. It has modified RTS funtionality so that it will work with the low power example described above. The modified RTS functionality consists of setting RTS low before transmitting data and setting it high when data transmission is finished.
+This project is configured for normal operation and is not low power. It has modified RTS funtionality so that it will work with the UART slave low power example. The modified RTS functionality consists of setting RTS low before transmitting data and setting it high when data transmission is finished.
 
-Test:
+Test
+------------
 - Flash softdevice S110 v6.0.0 to two development boards or two evaluation boards
 - Flash the ble_app_uart_low_power_with_buffers (UART slave) example to one board and ble_app_uart_low_power_with_buffers_peer_device (UART master) to the other board
 - Connect the UART pins on the two boards together. To know what pins to hook together, look at the UART pin configuration in each example
@@ -24,7 +25,6 @@ Test:
 - Connect a second BLE dongle with master emualtor firmware and open a second Master Control Panel. Select UART_master device, perform Service Discovery and enable services
 - In the Master Control Panel connected to the UART master, select the UART RX characteristic, write characters in the Value field and press Write button. When you have written 20 characters, you should see those characters appear in the UART TX characteristic on the Master Control Panel connected to the UART slave device.
 - Similarly, write to the UART RX characteristic in the Master Control Panel connected to the ble_app_uart_low_power_with_buffersd device to transfer data in the opposite direction. This data will however not come through unless you write data from UART master to UART slave, because the UART master enables the UART slave only when data is transmitted from UART master to UART slave. This could however be modified by letting the UART master periodically enable the UART slave by periodically setting the RTS line low. 
- 
  
 Requirements
 ------------
