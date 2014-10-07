@@ -50,6 +50,8 @@ static uint32_t                    m_pin_cts_mask;                          /**<
 static app_uart_event_handler_t    m_event_handler;                         /**< Event handler function. */
 static volatile app_uart_states_t  m_current_state = UART_OFF;              /**< State of the state machine. */
 
+static volatile bool rx_fifo_overflow = false;
+
 /**@brief Function for disabling the UART when entering the UART_OFF state.
  */
 static void action_uart_deactivate(void)
@@ -300,16 +302,26 @@ void UART0_IRQHandler(void)
         NRF_UART0->EVENTS_RXDRDY = 0;
         
         // Write received byte to FIFO
-        err_code = app_fifo_put(&m_rx_fifo, (uint8_t)NRF_UART0->RXD);
-        if (err_code != NRF_SUCCESS)
+        if(FIFO_LENGTH(m_rx_fifo) < m_rx_fifo.buf_size_mask)
         {
-            app_uart_evt_t app_uart_event;
-            app_uart_event.evt_type          = APP_UART_FIFO_ERROR;
-            app_uart_event.data.error_code   = err_code;
-            m_event_handler(&app_uart_event);
+            err_code = app_fifo_put(&m_rx_fifo, (uint8_t)NRF_UART0->RXD);
+            if (err_code != NRF_SUCCESS)
+            {
+                app_uart_evt_t app_uart_event;
+                app_uart_event.evt_type          = APP_UART_FIFO_ERROR;
+                app_uart_event.data.error_code   = err_code;
+                m_event_handler(&app_uart_event);
+            }
+            else if (FIFO_LENGTH(m_rx_fifo) == 1)
+            {
+                app_uart_evt_t app_uart_event;
+                app_uart_event.evt_type = APP_UART_DATA_READY;
+                m_event_handler(&app_uart_event);
+            }
         }
+        else rx_fifo_overflow = true;
         // Notify that new data is available if this was first byte put in the buffer.
-        else if (FIFO_LENGTH(m_rx_fifo) == 1)
+        /*else if (FIFO_LENGTH(m_rx_fifo) == 1)
         {
             app_uart_evt_t app_uart_event;
             app_uart_event.evt_type = APP_UART_DATA_READY;
@@ -318,7 +330,7 @@ void UART0_IRQHandler(void)
         else
         {
             // Do nothing, only send event if first byte was added or overflow in FIFO occurred.
-        }
+        }*/
     }
     
     // Handle transmission.
@@ -372,6 +384,10 @@ static void uart_no_flow_control_init(void)
  */
 static void uart_standard_flow_control_init(const app_uart_comm_params_t * p_comm_params)
 {
+		// Configure hardware flow control.
+		nrf_gpio_cfg_output(p_comm_params->rts_pin_no);
+		NRF_GPIO->OUTSET = 1 << p_comm_params->rts_pin_no;	
+	
     NRF_UART0->ENABLE        = (UART_ENABLE_ENABLE_Enabled << UART_ENABLE_ENABLE_Pos);
     NRF_UART0->EVENTS_RXDRDY = 0;
     NRF_UART0->EVENTS_TXDRDY = 0;
@@ -423,7 +439,6 @@ uint32_t app_uart_init(const app_uart_comm_params_t * p_comm_params,
 
     // Configure RX and TX pins.
     nrf_gpio_cfg_output(p_comm_params->tx_pin_no);
-		NRF_GPIO->OUTSET = 1 << p_comm_params->tx_pin_no;
     nrf_gpio_cfg_input(p_comm_params->rx_pin_no, NRF_GPIO_PIN_NOPULL);
 
     NRF_UART0->PSELTXD = p_comm_params->tx_pin_no;
@@ -444,7 +459,7 @@ uint32_t app_uart_init(const app_uart_comm_params_t * p_comm_params,
     {
         // Configure hardware flow control.
         nrf_gpio_cfg_output(p_comm_params->rts_pin_no);
-        NRF_GPIO->OUTSET = 1 << p_comm_params->rts_pin_no;
+        NRF_GPIO->OUT = 1 << p_comm_params->rts_pin_no;
 
         NRF_UART0->PSELCTS  = UART_PIN_DISCONNECTED;
         NRF_UART0->PSELRTS  = p_comm_params->rts_pin_no;
@@ -540,7 +555,15 @@ uint32_t app_uart_init(const app_uart_comm_params_t * p_comm_params,
 
 uint32_t app_uart_get(uint8_t * p_byte)
 {
-    return app_fifo_get(&m_rx_fifo, p_byte);
+    NVIC_DisableIRQ(UART0_IRQn);
+    uint32_t retval = app_fifo_get(&m_rx_fifo, p_byte);
+    if(rx_fifo_overflow)
+    {
+        app_fifo_put(&m_rx_fifo, (uint8_t)NRF_UART0->RXD);
+        rx_fifo_overflow = false;
+    }
+    NVIC_EnableIRQ(UART0_IRQn);
+    return retval;
 }
 
 
@@ -606,3 +629,17 @@ uint32_t app_uart_close(uint16_t app_uart_uid)
     return app_gpiote_user_disable(m_gpiote_uid);
 }
 
+void uart_disable(void)
+{
+		on_uart_event(ON_UART_CLOSE);
+}
+
+void uart_enable(void)
+{
+    NRF_UART0->ENABLE       = (UART_ENABLE_ENABLE_Enabled << UART_ENABLE_ENABLE_Pos);
+	  NRF_UART0->TASKS_STARTTX = 1;
+    NRF_UART0->TASKS_STARTRX = 1;
+
+    m_current_state          = UART_READY;
+		on_uart_event(ON_UART_PUT);
+}

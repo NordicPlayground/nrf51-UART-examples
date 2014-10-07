@@ -14,7 +14,7 @@ Sleep current is ~3uA when the softdevice is enabled and the nRF51 is sleeping. 
 
 ble_app_uart_low_power_with_buffers_peer_device (UART master)
 ------------
-This project is configured for normal operation and is not low power. It has modified RTS funtionality so that it will work with the UART slave low power example. The modified RTS functionality consists of setting RTS low before transmitting data and setting it high when data transmission is finished.
+This project is configured for normal operation and is also low power, as it will only enable the UART when there is data to send. It has modified RTS funtionality so that it will work with the UART slave low power example. The modified RTS functionality consists of setting RTS low before transmitting data and setting it high when data transmission is finished.
 
 Test
 ------------
@@ -28,8 +28,8 @@ Test
  
 Requirements
 ------------
-- nRF51 SDK version 5.2.0
-- BLE S110 softdevice version 6.0.0
+- nRF51 SDK version 6.1.0
+- BLE S110 softdevice version 7.0.0
 - nRF51822 Development Kit version 2.1.0 or later
 
 The project may need modifications to work with other versions or other boards. 
