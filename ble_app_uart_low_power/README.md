@@ -8,13 +8,16 @@ ble_app_uart_low_power_with_buffers (UART slave)
 ------------
 This project is configured for low power operation.
  
-When the UART on the nRF51 is constantly enabled, it will consume a lot of current, ~1mA constantly. The trick is to only enable the UART when data transmission is needed. There are primarily two methods for achieving this, one is to configure two GPIO's for controling this, second method is to enable the UART hardware flow control in LOW_POWER mode, which this example does.
-This LOW POWER example will have flow control enabled in a specific LOW POWER mode where the nRF51 is woken up and the UART is enabled when CTS goes low. nRF51 will set RTS low when it is ready to receive data. So the peer UART device must set nRF51 CTS low when sending data to nRF51 and set it high again when finished transmitting data. 
+When the UART on the nRF51 is constantly enabled, it will consume a lot of current, ~1mA constantly. The trick is to only enable the UART when data transmission is needed. There are primarily two methods for achieving this: 
+
+- **Configure two GPIO control pins.** This will require the nRF51 application to manually signal the UART peer device when it is safe to send data. Similarly, the UART peer device will have to signal the nRF51 when it is safe to send data to the UART peer device. 
+
+- **Enable the UART hardware flow control in LOW_POWER mode**, which this example does. This LOW POWER example will have hardware flow control enabled in a specific LOW POWER mode where the nRF51 is woken up and the UART is enabled when CTS goes low. nRF51 will set RTS low when it is ready to receive data. So the peer UART device must set nRF51 CTS low when sending data to nRF51 and set it high again when finished transmitting data.
 Sleep current is ~3uA when the softdevice is enabled and the nRF51 is sleeping. With the UART in LOW POWER mode the nRF51 will therefore consume ~3uA + UART current consumption. How much the UART will consume depends on the amount of data the nRF51822 will have to receive and the BAUD rate chosen, the higher the BAUD rate, the less the current consumption. 
 
 ble_app_uart_low_power_with_buffers_peer_device (UART master)
 ------------
-This project is configured for normal operation and is also low power, as it will only enable the UART when there is data to send. It has modified RTS funtionality so that it will work with the UART slave low power example. The modified RTS functionality consists of setting RTS low before transmitting data and setting it high when data transmission is finished.
+This project is configured for normal operation and is also low power, as it will only enable the UART when there is data to send. It has modified RTS funtionality so that it will work with the UART slave low power example. The modified RTS functionality consists of setting RTS low before transmitting data and setting it high when data transmission is finished. Since the UART master is in control of when UART data is transmitted and when not, it might be desirable to have the UART master periodically enable transmission (by setting the UART slave CTS line low) in order to give the UART slave a chance to send data to the UART master.
 
 Test
 ------------
