@@ -21,7 +21,7 @@ This project is configured for normal operation and is also low power, as it wil
 
 Test
 ------------
-- Flash softdevice S110 v6.0.0 to two development boards or two evaluation boards
+- Flash softdevice S110 v7.0.0 to two development boards or two evaluation boards
 - Flash the ble_app_uart_low_power_with_buffers (UART slave) example to one board and ble_app_uart_low_power_with_buffers_peer_device (UART master) to the other board
 - Connect the UART pins on the two boards together. To know what pins to hook together, look at the UART pin configuration in each example
 - Connect a PCA10001 BLE dongle with master emulator firmware and open the Master Control Panel. Select Nordic_UART device (this is the device running the UART slave example), perform Service Discovery and enable services
