@@ -601,7 +601,7 @@ int main(void)
     conn_params_init();
     sec_params_init();
     
-    uart_putstring(START_STRING);
+    uart_putstring((const uint8_t *)START_STRING);
     
     advertising_start();
     
