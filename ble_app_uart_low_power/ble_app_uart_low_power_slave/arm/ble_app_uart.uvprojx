@@ -14,7 +14,7 @@
         <TargetCommonOption>
           <Device>nRF51822_xxAA</Device>
           <Vendor>Nordic Semiconductor</Vendor>
-          <PackID>NordicSemiconductor.nRF_InternalDeviceFamilyPack.1.1.0</PackID>
+          <PackID>NordicSemiconductor.nRF_DeviceFamilyPack.1.1.1</PackID>
           <PackURL>http://www.keil.com/pack/</PackURL>
           <Cpu>IRAM(0x20000000-0x20003FFF) IROM(0-0x3FFFF) CLOCK(16000000) CPUTYPE("Cortex-M0") ESEL ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
@@ -364,7 +364,7 @@
             <useXO>0</useXO>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>BOARD_PCA10001 NRF51,DEBUG_NRF_USER, BLE_STACK_SUPPORT_REQD</Define>
+              <Define>BOARD_NRF6310 NRF51,DEBUG_NRF_USER, BLE_STACK_SUPPORT_REQD</Define>
               <Undefine></Undefine>
               <IncludePath>..;..\..\..\..\..\..\Include;..\..\..\..\..\..\Include\app_common;..\..\..\..\..\..\Include\ble;..\..\..\..\..\..\Include\ble\ble_services;..\..\..\..\..\..\Include\s110;..\..\..\..\..\..\Include\sd_common</IncludePath>
             </VariousControls>
@@ -599,7 +599,7 @@
         <TargetCommonOption>
           <Device>nRF51822_xxAB</Device>
           <Vendor>Nordic Semiconductor</Vendor>
-          <PackID>NordicSemiconductor.nRF_InternalDeviceFamilyPack.1.1.0</PackID>
+          <PackID>NordicSemiconductor.nRF_DeviceFamilyPack.1.1.1</PackID>
           <PackURL>http://www.keil.com/pack/</PackURL>
           <Cpu>IRAM(0x20000000-0x20003FFF) IROM(0-0x3FFFF) CLOCK(16000000) CPUTYPE("Cortex-M0") ESEL ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>

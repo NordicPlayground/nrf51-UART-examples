@@ -19,6 +19,15 @@ ble_app_uart_low_power_with_buffers_peer_device (UART master)
 ------------
 This project is configured for normal operation and is also low power, as it will only enable the UART when there is data to send. It has modified RTS funtionality so that it will work with the UART slave low power example. The modified RTS functionality consists of setting RTS low before transmitting data and setting it high when data transmission is finished. Since the UART master is in control of when UART data is transmitted and when not, it might be desirable to have the UART master periodically enable transmission (by setting the UART slave CTS line low) in order to give the UART slave a chance to send data to the UART master.
 
+Current consumption
+------------
+- The current consumption of the low power applications (both UART master and UART slave) is about 700uA when advertising
+- After connection is established, the current consumption is around 450uA if the Master Control Panel connects with its default 20ms connection interval
+- 5 seconds after the connection establishment and enabling services, the low power applications will send a connection parameter update request to the central device (Master Control Panel), which results in a connection parameter update
+- The connection parameters are updated to 100ms connection interval and slave latency of 4, so packets will be sent every 500ms, which results in a current consumption of about 25uA
+- The user should modify the connection parameters for his own requirements, in order to improve response time, or to lower current consumption even further
+- Description of connection parameters and how to modify them in the application are given on https://devzone.nordicsemi.com/question/5186/how-to-minimize-current-consumption-for-ble-application-on-nrf51822/
+
 Test
 ------------
 - Flash softdevice S110 v7.0.0 to two development boards or two evaluation boards
