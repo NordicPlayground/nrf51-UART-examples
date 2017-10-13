@@ -2,7 +2,7 @@ app_uart library example with low power mode
 ==================
 
 This project contains code examples that show nrf51 UART functionality with the app_uart library in low power mode.
-There are in fact two projects included, one is the actual low power exampel and the other example is for testing on a nRF51 UART peer device:
+There are in fact two projects included, one is the actual low power example and the other example is for testing on a nRF51 UART peer device:
 
 ble_app_uart_low_power_with_buffers (UART slave)
 ------------
